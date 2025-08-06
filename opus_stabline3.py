@@ -169,7 +169,8 @@ class BlindSearchEnv(gym.Env):
 
         obs.extend(visit_map.flatten().tolist())
         # 時間比例
-        obs.append(self.steps / self.max_steps)
+        time_ratio = self.steps / self.max_steps
+        obs.append(time_ratio)
         
         # 上一個方向（one-hot）
         direction_onehot = [0] * 8
