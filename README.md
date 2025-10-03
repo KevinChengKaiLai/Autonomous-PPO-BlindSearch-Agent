@@ -144,9 +144,24 @@ algo_compare_fixed.py      # Compare RL vs Traditional methods
 ### 1. Installation
 
 ```bash
+# Clone or download this project
+cd project2
+
 # Install required packages
-pip install gymnasium stable-baselines3 torch numpy matplotlib
+pip install -r requirements.txt
+
+# Optional: For GPU support, install PyTorch with CUDA
+# Visit https://pytorch.org/get-started/locally/ for instructions
 ```
+
+**Dependencies:**
+- Python 3.8 or higher recommended
+- numpy - Numerical computing
+- matplotlib - Visualization
+- gymnasium - RL environment framework
+- stable-baselines3 - RL algorithms (PPO, DQN, SAC)
+- torch - Deep learning backend
+- tensorboard - Training monitoring (optional)
 
 ### 2. Train an RL Agent
 
@@ -306,6 +321,7 @@ A: Applications include:
 After running, you'll find:
 
 ```
+requirements.txt                        # Package dependencies
 fig/                                    # Visualization images
 blind_search_best_model/                # Best model checkpoint
 blind_search_logs/                      # Evaluation logs

@@ -4,7 +4,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import os
-from opus_stabline3 import BlindSearchEnv
+from environment import BlindSearchEnv
 from stable_baselines3 import PPO
 import time
 from abc import ABC, abstractmethod
