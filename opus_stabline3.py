@@ -10,12 +10,12 @@ from typing import Dict, List, Tuple, Optional
 import torch
 from collections import deque
 import matplotlib
-matplotlib.use('Agg')  # 非互動式後端，適合Colab
+matplotlib.use('Agg')  # Non-interactive backend, suitable for Colab
 
-# ===== 自定義 Gym 環境 =====
+# ===== Custom Gym Environment =====
 
 class BlindSearchEnv(gym.Env):
-    """盲目搜索環境 - 符合 Gymnasium 接口"""
+    """Blind Search Environment - Compatible with Gymnasium Interface"""
     
     def __init__(self, grid_size: int = 50, sigma: float = 0.05, max_steps: int = 5000):
         super().__init__()
@@ -23,10 +23,10 @@ class BlindSearchEnv(gym.Env):
         self.sigma = sigma
         self.max_steps = max_steps
         
-        # 定義動作空間：8個離散方向
+        # Define action space: 8 discrete directions
         self.action_space = spaces.Discrete(8)
         
-        # 定義觀察空間
+        # Define observation space
         # [agent_x, agent_y, visit_map(10x10), time_ratio, last_direction(8)]
         self.observation_space = spaces.Box(
             low=0, high=1, 
@@ -34,7 +34,7 @@ class BlindSearchEnv(gym.Env):
             dtype=np.float32
         )
         
-        # 方向向量
+        # Direction vectors
         self.directions = np.array([
             [1, 0], [1, 1], [0, 1], [-1, 1],
             [-1, 0], [-1, -1], [0, -1], [1, -1]
@@ -47,40 +47,40 @@ class BlindSearchEnv(gym.Env):
         self.reset()
         
     def reset(self, seed=None, options=None):
-        """reset environment"""
+        """Reset environment"""
         super().reset(seed=seed)
         
-        # Agent 從左下角開始
+        # Agent starts from bottom-left corner
         self.agent_pos = np.array([0.0, 0.0])
         
-        # 隨機生成目標位置
+        # Randomly generate target position
         margin = 0
         self.target_pos = np.array([
             self.np_random.uniform(margin, 1.0 - margin),
             self.np_random.uniform(margin, 1.0 - margin)
         ])
         
-        # 初始化訪問地圖和軌跡
+        # Initialize visit map and trajectory
         self.visited = np.zeros((self.grid_size, self.grid_size))
         self.trajectory = [self.agent_pos.copy()]
         self.steps = 0
         self.last_direction = 0
         
-        # 記錄初始位置為已訪問
+        # Mark initial position as visited
         self._mark_visited(self.agent_pos)
         
         return self._get_observation(), {}
     
     def step(self, action: int):
-        """execute action"""
-        # 移動速度
+        """Execute action"""
+        # Movement speed
         speed = 2.0 / self.grid_size
         
-        # 更新位置
+        # Update position
         new_pos = self.agent_pos + self.directions[action] * speed
         new_pos = np.clip(new_pos, 0, 1)
         
-        # 計算移動前的訪問狀態
+        # Calculate visit state before movement
         old_coverage = np.sum(self.visited > 0)
         
         self.agent_pos = new_pos
@@ -88,21 +88,21 @@ class BlindSearchEnv(gym.Env):
         self.steps += 1
         self.last_direction = action
         
-        # 更新訪問地圖
+        # Update visit map
         is_new_cell = self._mark_visited(self.agent_pos)
         new_coverage = np.sum(self.visited > 0)
         
-        # 檢查是否找到目標
+        # Check if target is found
         distance = np.linalg.norm(self.agent_pos - self.target_pos)
         found = distance < self.sigma
         
-        # 計算獎勵
+        # Calculate reward
         reward = self._calculate_reward(
             found, distance, is_new_cell, 
             old_coverage, new_coverage
         )
         
-        # 終止條件
+        # Termination conditions
         terminated = found
         truncated = self.steps >= self.max_steps
         
@@ -118,32 +118,32 @@ class BlindSearchEnv(gym.Env):
     def _calculate_reward(self, found: bool, distance: float, 
                          is_new_cell: bool, old_coverage: int, 
                          new_coverage: int) -> float:
-        """calculate reward function"""
+        """Calculate reward function"""
         if found:
-            # 找到目標的獎勵，根據步數給予額外獎勵
+            # Reward for finding target, with bonus based on efficiency
             base_reward = 1000
             efficiency_bonus = max(0, (self.max_steps - self.steps) / self.max_steps) * 500
             return base_reward + efficiency_bonus
         
-        # 基礎步數懲罰
+        # Base step penalty
         reward = -1
         
-        # 探索新區域獎勵
+        # Reward for exploring new areas
         if is_new_cell:
             reward += 5
         
-        # 覆蓋率增長獎勵
+        # Reward for coverage increase
         coverage_increase = (new_coverage - old_coverage) / (self.grid_size ** 2)
         reward += coverage_increase * 100
         
-        # 距離目標的隱式獎勵（用於引導，但不能直接感知目標）
-        # 這個在實際盲目搜索中不應該有，但有助於加速訓練
+        # Implicit reward based on distance to target (for guidance, but agent cannot directly sense target)
+        # This shouldn't exist in true blind search, but helps accelerate training
         # reward -= distance * 0.1
         
         return reward
     
     def _mark_visited(self, pos: np.ndarray) -> bool:
-        """mark visited position, return if it's a new cell"""
+        """Mark visited position, return if it's a new cell"""
         grid_x = int(pos[0] * self.grid_size)
         grid_y = int(pos[1] * self.grid_size)
         grid_x = min(grid_x, self.grid_size - 1)
@@ -155,24 +155,24 @@ class BlindSearchEnv(gym.Env):
         return is_new
     
     def _get_observation(self) -> np.ndarray:
-        """get observation"""
+        """Get observation"""
         obs = []
         
-        # Agent 位置
+        # Agent position
         obs.extend(self.agent_pos.tolist())
         
-        # 訪問地圖（降採樣到 10x10）        
-        # 🔧 改進：訪問地圖歸一化，保留頻率信息
+        # Visit map (downsampled to 10x10)        
+        # Improvement: normalize visit map, preserve frequency information
         visit_map = self.visited.reshape(10, 5, 10, 5).mean(axis=(1, 3))
         max_visits = np.max(visit_map) if np.max(visit_map) > 0 else 1
         visit_map = np.clip(visit_map / max_visits, 0, 1)
 
         obs.extend(visit_map.flatten().tolist())
-        # 時間比例
+        # Time ratio
         time_ratio = self.steps / self.max_steps
         obs.append(time_ratio)
         
-        # 上一個方向（one-hot）
+        # Last direction (one-hot)
         direction_onehot = [0] * 8
         direction_onehot[self.last_direction] = 1
         obs.extend(direction_onehot)
@@ -180,26 +180,26 @@ class BlindSearchEnv(gym.Env):
         return np.array(obs, dtype=np.float32)
     
     def render(self, mode='human'):
-        """render environment"""
+        """Render environment"""
         if not hasattr(self, 'fig'):
             self.fig, self.ax = plt.subplots(figsize=(8, 8))
-            # 移除 plt.ion() - 在Colab中不需要
+            # Remove plt.ion() - not needed in Colab
         
         self.ax.clear()
         
-        # 繪製訪問熱力圖
+        # Draw visit heatmap
         self.ax.imshow(self.visited.T, cmap='Blues', alpha=0.5, 
                       origin='lower', extent=[0, 1, 0, 1])
         
-        # 繪製軌跡
+        # Draw trajectory
         if len(self.trajectory) > 1:
             traj = np.array(self.trajectory)
             self.ax.plot(traj[:, 0], traj[:, 1], 'b-', alpha=0.7, linewidth=2)
         
-        # 繪製 Agent
+        # Draw Agent
         self.ax.plot(self.agent_pos[0], self.agent_pos[1], 'ro', markersize=10)
         
-        # 繪製目標
+        # Draw target
         circle = plt.Circle(self.target_pos, self.sigma, color='green', 
                           fill=False, linewidth=2)
         self.ax.add_patch(circle)
@@ -211,19 +211,19 @@ class BlindSearchEnv(gym.Env):
         self.ax.set_title(f'Steps: {self.steps} | Coverage: {np.sum(self.visited > 0) / (self.grid_size ** 2):.1%}')
         self.ax.grid(True, alpha=0.3)
         
-        # 移除 plt.pause() - 在Colab中會卡住
+        # Remove plt.pause() - it will freeze in Colab
         plt.draw()
-        plt.show()  # 改為直接顯示
+        plt.show()  # Show directly instead
         
     def close(self):
-        """close environment"""
+        """Close environment"""
         if hasattr(self, 'fig'):
             plt.close(self.fig)
 
-# ===== 自定義回調函數 =====
+# ===== Custom Callback Functions =====
 
 class TrajectoryCollectorCallback(BaseCallback):
-    """collect successful trajectories callback"""
+    """Callback to collect successful trajectories"""
     
     def __init__(self, verbose=0):
         super().__init__(verbose)
@@ -232,17 +232,17 @@ class TrajectoryCollectorCallback(BaseCallback):
         self.success_count = 0
         
     def _on_step(self) -> bool:
-        # 檢查是否有環境完成
+        # Check if any environment is done
         if self.locals.get('dones')[0]:
             info = self.locals.get('infos')[0]
             self.episode_count += 1
             
-            # 如果成功找到目標，保存軌跡
+            # If target found successfully, save trajectory
             if info.get('success', False):
                 self.success_count += 1
-                # 獲取底層環境（繞過Monitor包裝）
+                # Get underlying environment (bypass Monitor wrapper)
                 env = self.training_env.envs[0]
-                if hasattr(env, 'env'):  # 如果是Monitor包裝的環境
+                if hasattr(env, 'env'):  # If it's a Monitor-wrapped environment
                     env = env.env
                 self.successful_trajectories.append({
                     'trajectory': env.trajectory.copy(),
@@ -256,7 +256,7 @@ class TrajectoryCollectorCallback(BaseCallback):
         return True
 
 class ProgressCallback(BaseCallback):
-    """training progress callback"""
+    """Callback for training progress"""
     
     def __init__(self, check_freq=1000, verbose=1):
         super().__init__(verbose)
@@ -266,7 +266,7 @@ class ProgressCallback(BaseCallback):
         
     def _on_step(self) -> bool:
         if self.n_calls % self.check_freq == 0:
-            # 獲取訓練統計
+            # Get training statistics
             if len(self.model.ep_info_buffer) > 0:
                 mean_reward = np.mean([ep_info['r'] for ep_info in self.model.ep_info_buffer])
                 mean_length = np.mean([ep_info['l'] for ep_info in self.model.ep_info_buffer])
@@ -279,7 +279,7 @@ class ProgressCallback(BaseCallback):
         
         return True
 
-# ===== 訓練函數 =====
+# ===== Training Functions =====
 
 import os
 import pickle
@@ -287,28 +287,28 @@ import pickle
 def train_blind_search_agent(total_timesteps: int = 500000, 
                            algorithm: str = 'PPO',
                            render_freq: int = 0):
-    """train blind search agent"""
+    """Train blind search agent"""
     
-    print(f"=== use Stable-Baselines3 {algorithm} to train blind search agent ===\n")
+    print(f"=== Training Blind Search Agent with Stable-Baselines3 {algorithm} ===\n")
     
     if torch.cuda.is_available():
         device = 'cuda'
-        print(f"✅ Using GPU: {torch.cuda.get_device_name()}")
+        print(f"[GPU] Using GPU: {torch.cuda.get_device_name()}")
     else:
         device = 'cpu'
-        print("⚠️  GPU not available, using CPU")
+        print("[CPU] GPU not available, using CPU")
     
-    # 創建環境 - 使用固定 seed 序列
+    # Create environment - using fixed seed sequence
     env = BlindSearchEnv(grid_size=50, sigma=0.05, max_steps=5000)
     env = Monitor(env)
     env = DummyVecEnv([lambda: env])
     
-    # 創建評估環境 - 使用相同的固定 seed 序列
+    # Create evaluation environment - using same fixed seed sequence
     eval_env = BlindSearchEnv(grid_size=50, sigma=0.05, max_steps=5000)
     eval_env = Monitor(eval_env)
     eval_env = DummyVecEnv([lambda: eval_env])
     
-    # 選擇算法
+    # Select algorithm
     if algorithm == 'PPO':
         model = PPO(
             'MlpPolicy',
@@ -362,7 +362,7 @@ def train_blind_search_agent(total_timesteps: int = 500000,
     else:
         raise ValueError(f"Unknown algorithm: {algorithm}")
     
-    # 創建回調函數
+    # Create callback functions
     trajectory_callback = TrajectoryCollectorCallback(verbose=1)
     progress_callback = ProgressCallback(check_freq=5000)
     eval_callback = EvalCallback(
@@ -376,35 +376,35 @@ def train_blind_search_agent(total_timesteps: int = 500000,
     
     callbacks = [trajectory_callback, progress_callback, eval_callback]
     
-    # 訓練模型
-    print("start training...")
+    # Train model
+    print("Starting training...")
     model.learn(
         total_timesteps=total_timesteps,
         callback=callbacks,
         progress_bar=True
     )
     
-    print(f"\ntraining done! collected {len(trajectory_callback.successful_trajectories)} successful trajectories")
+    print(f"\nTraining complete! Collected {len(trajectory_callback.successful_trajectories)} successful trajectories")
     
-    # 保存模型到本地
+    # Save model locally
     model_path = f"blind_search_{algorithm.lower()}_final"
     model.save(model_path)
-    print(f"模型已保存到本地: {model_path}")
+    print(f"Model saved locally: {model_path}")
     
     return model, trajectory_callback.successful_trajectories, progress_callback, model_path
 
-# ===== 評估函數 =====
+# ===== Evaluation Functions =====
 
 def evaluate_agent(model, n_eval_episodes: int = 100, render: bool = False):
-    """evaluate trained agent"""
+    """Evaluate trained agent"""
     
-    print("\n=== evaluate agent performance ===")
+    print("\n=== Evaluating Agent Performance ===")
     
-    # 使用多個不同的 seed 範圍進行評估
+    # Use multiple different seed ranges for evaluation
     seed_ranges = [
-        (0, 99),      # 訓練時看到的 seed 範圍
-        (100, 199),   # 新的 seed 範圍
-        (200, 299),   # 另一個新的 seed 範圍
+        (0, 99),      # Seed range seen during training
+        (100, 199),   # New seed range
+        (200, 299),   # Another new seed range
     ]
     
     all_results = []
@@ -440,37 +440,37 @@ def evaluate_agent(model, n_eval_episodes: int = 100, render: bool = False):
         all_results.append(results)
         env.close()
     
-    # 計算平均結果
+    # Calculate average results
     avg_success_rate = np.mean([r['success_rate'] for r in all_results])
-    print(f"多範圍評估平均成功率: {avg_success_rate:.2%}")
+    print(f"Multi-range evaluation average success rate: {avg_success_rate:.2%}")
     
     return all_results
 
-# ===== 軌跡分析函數 =====
+# ===== Trajectory Analysis Functions =====
 
 def analyze_trajectories(trajectories: List[Dict], model=None):
-    """分析學習到的軌跡"""
+    """Analyze learned trajectories"""
     
-    print(f"\n=== analyze {len(trajectories)} successful trajectories ===")
+    print(f"\n=== Analyzing {len(trajectories)} Successful Trajectories ===")
     
     if len(trajectories) == 0:
-        print("no successful trajectories to analyze")
+        print("No successful trajectories to analyze")
         return
     
     fig, axes = plt.subplots(2, 2, figsize=(12, 10))
     
-    # 1. 軌跡疊加圖
+    # 1. Trajectory overlay plot
     ax = axes[0, 0]
-    for i, traj_data in enumerate(trajectories[:30]):  # 顯示前30條
+    for i, traj_data in enumerate(trajectories[:30]):  # Show first 30
         traj = np.array(traj_data['trajectory'])
         ax.plot(traj[:, 0], traj[:, 1], alpha=0.3, linewidth=1)
-    ax.set_title('overlay trajectories (top 30)')
+    ax.set_title('Overlay Trajectories (Top 30)')
     ax.set_aspect('equal')
     ax.grid(True)
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     
-    # 2. 平均訪問熱力圖
+    # 2. Average visit heatmap
     ax = axes[0, 1]
     grid_size = 50
     avg_visited = np.zeros((grid_size, grid_size))
@@ -488,41 +488,41 @@ def analyze_trajectories(trajectories: List[Dict], model=None):
     
     avg_visited /= len(trajectories)
     im = ax.imshow(avg_visited.T, cmap='hot', origin='lower', extent=[0, 1, 0, 1])
-    ax.set_title('mean visited heatmap')
+    ax.set_title('Mean Visited Heatmap')
     ax.set_aspect('equal')
     plt.colorbar(im, ax=ax)
     
-    # 3. 步數分布
+    # 3. Steps distribution
     ax = axes[1, 0]
     steps = [t['steps'] for t in trajectories]
     ax.hist(steps, bins=30, alpha=0.7, edgecolor='black')
-    ax.set_xlabel('steps')
-    ax.set_ylabel('frequency')
-    ax.set_title(f'steps distribution (mean: {np.mean(steps):.1f})')
+    ax.set_xlabel('Steps')
+    ax.set_ylabel('Frequency')
+    ax.set_title(f'Steps Distribution (Mean: {np.mean(steps):.1f})')
     ax.grid(True, alpha=0.3)
     
-    # 4. 目標位置分布
+    # 4. Target position distribution
     ax = axes[1, 1]
     targets = np.array([t['target'] for t in trajectories])
     scatter = ax.scatter(targets[:, 0], targets[:, 1], 
                         c=[t['steps'] for t in trajectories],
                         cmap='viridis', alpha=0.6)
-    ax.set_xlabel('target X')
-    ax.set_ylabel('target Y')
-    ax.set_title('target position vs steps')
+    ax.set_xlabel('Target X')
+    ax.set_ylabel('Target Y')
+    ax.set_title('Target Position vs Steps')
     ax.set_aspect('equal')
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
-    plt.colorbar(scatter, ax=ax, label='steps')
+    plt.colorbar(scatter, ax=ax, label='Steps')
     
     plt.tight_layout()
     plt.show()
     
-    # 如果有模型，展示一個示例運行
+    # If model exists, show an example run
     if model is not None:
-        print("\nshow a test run...")
+        print("\nShowing a test run...")
         env = BlindSearchEnv(grid_size=50, sigma=0.05, max_steps=5000)
-        obs, _ = env.reset()  # 每個 episode 使用不同的固定 seed
+        obs, _ = env.reset()  # Each episode uses a different fixed seed
         
         for step in range(5000):
             action, _ = model.predict(obs, deterministic=True)
@@ -532,33 +532,33 @@ def analyze_trajectories(trajectories: List[Dict], model=None):
                 env.render()
             
             if terminated or truncated:
-                print(f"done! steps: {info['steps']}, success: {info['success']}")
+                print(f"Done! Steps: {info['steps']}, Success: {info['success']}")
                 break
         
         env.render()
-        # 移除 input() - 在Colab中無法使用
+        # Remove input() - cannot be used in Colab
         print("Test run completed!")
         env.close()
 
-# ===== 主程序 =====
+# ===== Main Program =====
 
 def main():
-    """主程序：訓練和評估盲目搜索智能體"""
+    """Main program: Train and evaluate blind search agent"""
     
-    # 訓練參數
+    # Training parameters
     TOTAL_TIMESTEPS = 1e7
     ALGORITHM = 'PPO'
     
-    # 訓練模型
+    # Train model
     model, trajectories, progress_callback, model_path = train_blind_search_agent(
         total_timesteps=TOTAL_TIMESTEPS,
         algorithm=ALGORITHM
     )
     
-    # 評估模型
+    # Evaluate model
     results = evaluate_agent(model, n_eval_episodes=100, render=False)
     
-    # 保存結果數據到本地
+    # Save results data locally
     results_data = {
         'results': results,
         'trajectories_count': len(trajectories),
@@ -571,33 +571,33 @@ def main():
     with open(results_path, 'wb') as f:
         pickle.dump(results_data, f)
     
-    print(f"訓練結果已保存到本地: {results_path}")
-    print(f"模型路徑: {model_path}")
+    print(f"Training results saved locally: {results_path}")
+    print(f"Model path: {model_path}")
     
     return model, trajectories, results, model_path
 
-# ===== 比較不同算法 =====
+# ===== Compare Different Algorithms =====
 
 def compare_algorithms():
-    """比較不同RL算法的性能"""
+    """Compare performance of different RL algorithms"""
     
     algorithms = ['PPO', 'DQN', 'SAC']
     results = {}
     
     for algo in algorithms:
         print(f"\n{'='*50}")
-        print(f"訓練 {algo}")
+        print(f"Training {algo}")
         print(f"{'='*50}")
         
         model, trajectories, _ = train_blind_search_agent(
-            total_timesteps=200000,  # 較少的步數用於快速比較
+            total_timesteps=200000,  # Fewer steps for quick comparison
             algorithm=algo
         )
         
         results[algo] = evaluate_agent(model, n_eval_episodes=50)
         results[algo]['trajectories'] = len(trajectories)
     
-    # 可視化比較結果
+    # Visualize comparison results
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
     
     algos = list(results.keys())
@@ -605,13 +605,13 @@ def compare_algorithms():
     avg_steps = [results[a]['avg_steps'] for a in algos]
     
     ax1.bar(algos, success_rates)
-    ax1.set_ylabel('success rate')
-    ax1.set_title('algorithm success rate comparison')
+    ax1.set_ylabel('Success Rate')
+    ax1.set_title('Algorithm Success Rate Comparison')
     ax1.set_ylim(0, 1)
     
     ax2.bar(algos, avg_steps)
-    ax2.set_ylabel('mean steps')
-    ax2.set_title('mean steps comparison')
+    ax2.set_ylabel('Mean Steps')
+    ax2.set_title('Mean Steps Comparison')
     
     plt.tight_layout()
     plt.show()
@@ -619,8 +619,8 @@ def compare_algorithms():
     return results
 
 if __name__ == "__main__":
-    # 運行主程序
+    # Run main program
     model, trajectories, results, model_path = main()
     
-    # 如果想比較不同算法，取消註釋下一行
+    # If you want to compare different algorithms, uncomment the next line
     # comparison_results = compare_algorithms()
