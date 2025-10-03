@@ -1,0 +1,15 @@
+# Core Dependencies
+numpy>=1.24.0,<2.0.0
+matplotlib>=3.7.0,<4.0.0
+gymnasium>=0.28.0,<1.0.0
+
+# Reinforcement Learning
+stable-baselines3>=2.0.0,<3.0.0
+torch>=2.0.0,<3.0.0
+
+# Optional: TensorBoard for monitoring training
+tensorboard>=2.13.0,<3.0.0
+
+# Note: If using GPU acceleration, install PyTorch with CUDA support:
+# Visit https://pytorch.org/get-started/locally/ for CUDA-specific installation
+
