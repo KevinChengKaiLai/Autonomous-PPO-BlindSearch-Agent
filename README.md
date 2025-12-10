@@ -314,6 +314,7 @@ A: Applications include:
 4. **Save checkpoints** - Don't lose training progress
 5. **Compare fairly** - Use same number of steps for all methods
 
+
 ---
 
 ## File Outputs
@@ -329,39 +330,6 @@ blind_search_tensorboard/               # Training metrics
 blind_search_ppo_final.zip             # Trained model
 training_results.pkl                    # Results data
 ```
-
----
-
-## Next Steps
-
-1. **Try different algorithms** - Uncomment `compare_algorithms()` in `main.py`
-2. **Experiment with rewards** - Modify `_calculate_reward()` in `environment.py`
-3. **Visualize learning** - Use TensorBoard: `tensorboard --logdir blind_search_tensorboard/`
-4. **Test your own strategies** - Create new search patterns in `algo_compare_fixed.py`
-
----
-
-## Learning Resources
-
-- [Stable-Baselines3 Documentation](https://stable-baselines3.readthedocs.io/)
-- [Gymnasium Documentation](https://gymnasium.farama.org/)
-- [RL Introduction (Spinning Up)](https://spinningup.openai.com/)
-
----
-
-## Credits
-
-Built with:
-- **Stable-Baselines3** - RL algorithms
-- **Gymnasium** - RL environment framework
-- **PyTorch** - Deep learning backend
-- **Matplotlib** - Visualization
-
----
-
-## License
-
-This project is for educational purposes. Feel free to modify and learn from it!
 
 ---
 
